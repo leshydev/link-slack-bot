@@ -37,8 +37,9 @@ web.channels.list(function(err, info) {
 });
 
 
-/*web.users.list(function(err, info) {
-});*/
+web.dm.list(function(err, info) {
+    debugger
+});
 
 var counter = 0;
 rtm.on(RTM_EVENTS.MESSAGE, function handleRtmMessage(message) {
