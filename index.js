@@ -9,7 +9,6 @@ let RtmClient = require('./node_modules/slack-client').RtmClient,
 let CONFIG = JSON.parse(fs.readFileSync('config.json', 'utf8')),
     bot_token = process.env.SLACK_BOT_TOKEN || CONFIG.SLACK_BOT_TOKEN,
     teamChannels = new Map((CONFIG.CHANNELS || []).map((channel) => [channel.id, channel])),
-    timeOffset = CONFIG.GMT_HOURS_OFFSET * 60 * 60000,
     users = new Map(),
     rtm = new RtmClient(bot_token),
     web = new WebClient(bot_token);
@@ -21,13 +20,14 @@ function fetchUserChannels(userId, teamChannelId, botImChannelId) {
         user = {
             id : userId,
             imChannelId : botImChannelId,
+            lastAnswerDate : null,
             channels : new Map()
         };
     }
 
     user.channels.set(teamChannelId, {
         id : teamChannelId,
-        lastAskedQuestionIndex : 0
+        lastAskedQuestionIndex : null
     });
 
     users.set(userId, user);
@@ -50,23 +50,44 @@ function fetchChannels(allChannels, imChannels) {
                 });
             }
         });
-    })
+    });
+}
+
+function getUserDate() {
+    let currentDate = new Date(),
+        userOffset = CONFIG.GMT_HOURS_OFFSET * 60 * 60000,
+        timeOffset = currentDate.getTimezoneOffset() * 60000,
+        userDate = new Date(currentDate.getTime() + timeOffset + userOffset);
+
+    return userDate;
 }
 
 function initQuestionsTrigger() {
     setInterval(() => {
-    }, 10000);
+        let userDate = getUserDate();
 
-    let currentDate = new Date(),
-        userOffset = currentDate.getTimezoneOffset() * 60000,
-        belarusTime = new Date(currentDate.getTime() + timeOffset - userOffset);
+        if (userDate.getHours() >= CONFIG.SCHEDULE_HOUR) {
+            for (let user of users.values()) {
+                for (let [userTeamChannelId, userTeamChannel] of user.channels) {
+                    let teamChannelQuestions = teamChannels.get(userTeamChannelId).questions,
+                        currentUserDateStr = `${userDate.getFullYear()}.${userDate.getMonth()}.${userDate.getDate()}`,
+                        lastAnswerDate = user.lastAnswerDate,
+                        lastAnswerDateStr;
 
-    for (let user of users.values()) {
-        for (let userTeamChannelId of user.channels.keys()) {
-            let teamChannelQuestions = teamChannels.get(userTeamChannelId).questions;
-            rtm.sendMessage(`<@${user.id}> ${teamChannelQuestions[0]}`, user.imChannelId);
+                    if (CONFIG.SKIP_WEEKEND && userDate.getDay() > 5) return;
+
+                    if (lastAnswerDate) {
+                        lastAnswerDateStr = `${lastAnswerDate.getFullYear()}.${lastAnswerDate.getMonth()}.${lastAnswerDate.getDate()}`;
+                    }
+
+                    if (userTeamChannel.lastAskedQuestionIndex === null && (lastAnswerDate === null || currentUserDateStr > lastAnswerDateStr)) {
+                        rtm.sendMessage(`<@${user.id}> ${teamChannelQuestions[0]}`, user.imChannelId);
+                        userTeamChannel.lastAskedQuestionIndex = 0;
+                    }
+                }
+            }
         }
-    }
+    }, 1000 * 60);
 }
 
 function onRtmClientStart(rtmStartData) {
@@ -82,10 +103,8 @@ function onRtmClientStart(rtmStartData) {
                 } else {
                     let imChannels = imChannelsInfo.ims;
 
-                    setTimeout(() => {
-                        fetchChannels(allChannels, imChannels);
-                        initQuestionsTrigger();
-                    }, 5000);
+                    fetchChannels(allChannels, imChannels);
+                    initQuestionsTrigger();
                 }
             });
         }
@@ -93,20 +112,28 @@ function onRtmClientStart(rtmStartData) {
 }
 
 rtm.on(RTM_EVENTS.MESSAGE, function handleRtmMessage(message) {
-    //if (message.channel === link_channel_id) return;
     let user = users.get(message.user);
+    if (!user || !user.channels) return;
 
     for (let [userTeamChannelId, userTeamChannel] of user.channels) {
         let teamChannelQuestions = teamChannels.get(userTeamChannelId).questions,
-            lastAskedQuestionIndex = userTeamChannel.lastAskedQuestionIndex;
+            lastAskedQuestionIndex = userTeamChannel.lastAskedQuestionIndex,
+            messageText;
+
+        if (lastAskedQuestionIndex === null) continue;
 
         if (lastAskedQuestionIndex === teamChannelQuestions.length - 1) {
-            rtm.sendMessage('Awesome! Have a great day', message.channel);
-            rtm.sendMessage(`<@${message.user}>'s status for today: bla-bla-bla`, userTeamChannelId);
+            web.chat.postMessage(userTeamChannelId, `<@${user.id}> posted status: bla-bla`);
+            lastAskedQuestionIndex = null;
+            messageText = 'Awesome! Have a great day';
         } else {
-            let nextMessageIndex = ++userTeamChannel.lastAskedQuestionIndex;
-            rtm.sendMessage(teamChannelQuestions[nextMessageIndex], message.channel);
+            lastAskedQuestionIndex++;
+            messageText = teamChannelQuestions[lastAskedQuestionIndex];
         }
+
+        rtm.sendMessage(messageText, message.channel);
+        userTeamChannel.lastAskedQuestionIndex = lastAskedQuestionIndex;
+        user.lastAnswerDate = getUserDate();
     }
 });
 
