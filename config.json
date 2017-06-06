@@ -1,8 +1,8 @@
 {
-  "SLACK_BOT_TOKEN": "",
+  "SLACK_BOT_TOKEN": "XXXXXX",
   "CHANNELS": [
     {
-      "id": "",
+      "id": "XXXXXX",
       "questions": [
         "Получилось ли у Вас выполнить все запланированные на вчера задачи?",
         "Какие планы на сегодня?",
@@ -12,6 +12,6 @@
     }
   ],
   "SCHEDULE_HOUR": 10,
-  "GMT_HOURS_OFFSET": 3,
+  "HOURS_GMT_OFFSET": 3,
   "SKIP_WEEKEND": true
 }

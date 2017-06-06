@@ -55,7 +55,7 @@ function fetchChannels(allChannels, imChannels) {
 
 function getUserDate() {
     let currentDate = new Date(),
-        userOffset = CONFIG.GMT_HOURS_OFFSET * 60 * 60000,
+        userOffset = CONFIG.HOURS_GMT_OFFSET * 60 * 60000,
         timeOffset = currentDate.getTimezoneOffset() * 60000,
         userDate = new Date(currentDate.getTime() + timeOffset + userOffset);
 
