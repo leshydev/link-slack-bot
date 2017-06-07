@@ -4,11 +4,13 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js"
+    "//": "link-slack-bot argument helps to identify background process if needed",
+    "start": "node index.js --link-slack-bot"
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "minimist": "^1.2.0",
     "slack-client": "^2.0.6"
   }
 }

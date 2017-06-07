@@ -4,11 +4,12 @@ let RtmClient = require('./node_modules/slack-client').RtmClient,
     WebClient = require('./node_modules/slack-client').WebClient,
     CLIENT_EVENTS = require('./node_modules/slack-client').CLIENT_EVENTS,
     RTM_EVENTS = require('./node_modules/slack-client').RTM_EVENTS,
+    argv = require('minimist')(process.argv.slice(2)),
     fs = require('fs');
 
 let CONFIG = JSON.parse(fs.readFileSync('config.json', 'utf8')),
-    bot_token = process.env.SLACK_BOT_TOKEN || CONFIG.SLACK_BOT_TOKEN,
-    teamChannels = new Map((CONFIG.CHANNELS || []).map((channel) => [channel.id, channel])),
+    bot_token = argv.SLACK_BOT_TOKEN || CONFIG.SLACK_BOT_TOKEN,
+    TEAM_CHANNELS = new Map((CONFIG.CHANNELS || []).map((channel) => [channel.id, channel])),
     users = new Map(),
     rtm = new RtmClient(bot_token),
     web = new WebClient(bot_token);
@@ -21,6 +22,7 @@ function fetchUserChannels(userId, teamChannelId, botImChannelId) {
             id : userId,
             imChannelId : botImChannelId,
             lastAnswerDate : null,
+            answers : [],
             channels : new Map()
         };
     }
@@ -34,7 +36,7 @@ function fetchUserChannels(userId, teamChannelId, botImChannelId) {
 }
 
 function fetchChannels(allChannels, imChannels) {
-    teamChannels.forEach((teamChannel) => {
+    TEAM_CHANNELS.forEach((teamChannel) => {
         allChannels.forEach((channel) => {
             let teamChannelId = teamChannel.id;
 
@@ -69,7 +71,7 @@ function initQuestionsTrigger() {
         if (userDate.getHours() >= CONFIG.SCHEDULE_HOUR) {
             for (let user of users.values()) {
                 for (let [userTeamChannelId, userTeamChannel] of user.channels) {
-                    let teamChannelQuestions = teamChannels.get(userTeamChannelId).questions,
+                    let teamChannelQuestions = TEAM_CHANNELS.get(userTeamChannelId).questions,
                         currentUserDateStr = `${userDate.getFullYear()}.${userDate.getMonth()}.${userDate.getDate()}`,
                         lastAnswerDate = user.lastAnswerDate,
                         lastAnswerDateStr;
@@ -87,7 +89,7 @@ function initQuestionsTrigger() {
                 }
             }
         }
-    }, 1000 * 60);
+    }, 1000 * 6);
 }
 
 function onRtmClientStart(rtmStartData) {
@@ -111,29 +113,53 @@ function onRtmClientStart(rtmStartData) {
     });
 }
 
+function buildPost(user, questions) {
+    let userPost = `<@${user.id}> *posted status:*`;
+
+    questions.forEach((question, index) => {
+        let answer = user.answers[index];
+
+        if (answer === '' || answer === '-') return;
+
+        userPost += `\n&gt;${question} \n${user.answers[index]}`;
+    });
+
+    return userPost;
+}
+
+function answerQuestion(user, channel, message) {
+    let channelId = channel.id,
+        teamChannelQuestions = TEAM_CHANNELS.get(channelId).questions,
+        lastAskedQuestionIndex = channel.lastAskedQuestionIndex,
+        messageText;
+
+    user.answers.push(message.text);
+
+    if (lastAskedQuestionIndex === teamChannelQuestions.length - 1) {
+        let post = buildPost(user, teamChannelQuestions);
+        web.chat.postMessage(channelId, post, {
+            parse: 'none',
+            mrkdwn: true
+        });
+        lastAskedQuestionIndex = null;
+        messageText = 'Awesome! Have a great day';
+    } else {
+        lastAskedQuestionIndex++;
+        messageText = teamChannelQuestions[lastAskedQuestionIndex];
+    }
+
+    rtm.sendMessage(messageText, message.channel);
+    channel.lastAskedQuestionIndex = lastAskedQuestionIndex;
+    user.lastAnswerDate = getUserDate();
+}
+
 rtm.on(RTM_EVENTS.MESSAGE, function handleRtmMessage(message) {
     let user = users.get(message.user);
     if (!user || !user.channels) return;
 
-    for (let [userTeamChannelId, userTeamChannel] of user.channels) {
-        let teamChannelQuestions = teamChannels.get(userTeamChannelId).questions,
-            lastAskedQuestionIndex = userTeamChannel.lastAskedQuestionIndex,
-            messageText;
-
-        if (lastAskedQuestionIndex === null) continue;
-
-        if (lastAskedQuestionIndex === teamChannelQuestions.length - 1) {
-            web.chat.postMessage(userTeamChannelId, `<@${user.id}> posted status: bla-bla`);
-            lastAskedQuestionIndex = null;
-            messageText = 'Awesome! Have a great day';
-        } else {
-            lastAskedQuestionIndex++;
-            messageText = teamChannelQuestions[lastAskedQuestionIndex];
-        }
-
-        rtm.sendMessage(messageText, message.channel);
-        userTeamChannel.lastAskedQuestionIndex = lastAskedQuestionIndex;
-        user.lastAnswerDate = getUserDate();
+    for (let userTeamChannel of user.channels.values()) {
+        if (userTeamChannel.lastAskedQuestionIndex === null) return;
+        answerQuestion(user, userTeamChannel, message);
     }
 });
 

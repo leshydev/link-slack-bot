@@ -3,6 +3,7 @@ Automates standup meetings by sending messages to subscribed users.
 
 
 ### Usage
+#### Installation
 First you need to create a bot for Slack. Here is full description how to do it: https://api.slack.com/slack-apps
 
 ```code
@@ -15,9 +16,16 @@ Edit config.json file placed in root folder. Look example below.
 
 ```code
 npm install
-
+```
+#### Running
+```code
 node index.js
 ```
+or
+```code
+nohup npm run start -- --SLACK_BOT_TOKEN=XXXXXXXXX &
+```
+The second way starts bot in background with predefined argument (you can see it in package.json) link-slack-bot, witch will help you to identify the process.
 
 ### Configuration
 Here is an example of config.json:
@@ -42,7 +50,7 @@ Here is an example of config.json:
 ```
 
 ```code
-SLACK_BOT_TOKEN: bot's token created in Slack team
+SLACK_BOT_TOKEN: bot's token created in Slack team *can be passed through command line as argument*
 CHANNELS: list of channels where bot publishes standup results
 CHANNELS.id: channel id
 CHANNELS.questions: list of questions bot asks each user in group
@@ -51,4 +59,4 @@ HOURS_GMT_OFFSET: indicates current timezone
 SKIP_WEEKEND: boolean value indicates if bot ask users on weekends
 ```
 ### Restriction
-User can't be in two standup groups at one time
+User can't be in two standup groups at one time.

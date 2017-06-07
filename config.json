@@ -1,8 +1,8 @@
 {
-  "SLACK_BOT_TOKEN": "XXXXXX",
+  "SLACK_BOT_TOKEN": "",
   "CHANNELS": [
     {
-      "id": "XXXXXX",
+      "id": "C5PS3QECT",
       "questions": [
         "Получилось ли у Вас выполнить все запланированные на вчера задачи?",
         "Какие планы на сегодня?",
