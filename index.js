@@ -125,7 +125,7 @@ function buildPost(user, questions) {
             "Oct", "Nov", "Dec"
         ],
         userPost = {
-            text : `<@${user.id}> posted a status update for *${day} ${monthNames[monthIndex]} ${year}*`,
+            text : `<@${user.id}> posted a status update for *${monthNames[monthIndex]} ${day}, ${year}*`,
             attachments : []
         };
 
