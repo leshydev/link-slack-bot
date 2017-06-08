@@ -114,14 +114,30 @@ function onRtmClientStart(rtmStartData) {
 }
 
 function buildPost(user, questions) {
-    let userPost = `<@${user.id}> *posted status:*`;
+    let date = getUserDate(),
+        day = date.getDate(),
+        monthIndex = date.getMonth(),
+        year = date.getFullYear(),
+        monthNames = [
+            "Jan", "Feb", "Mar",
+            "Apr", "May", "Jun",
+            "Jul", "Aug", "Sep",
+            "Oct", "Nov", "Dec"
+        ],
+        userPost = {
+            text : `<@${user.id}> posted a status update for *${day} ${monthNames[monthIndex]} ${year}*`,
+            attachments : []
+        };
 
     questions.forEach((question, index) => {
         let answer = user.answers[index];
 
         if (answer === '' || answer === '-') return;
-
-        userPost += `\n&gt;${question} \n${user.answers[index]}`;
+        userPost.attachments.push({
+            title : question,
+            color : "#839bbd",
+            text : user.answers[index]
+        });
     });
 
     return userPost;
@@ -137,9 +153,10 @@ function answerQuestion(user, channel, message) {
 
     if (lastAskedQuestionIndex === teamChannelQuestions.length - 1) {
         let post = buildPost(user, teamChannelQuestions);
-        web.chat.postMessage(channelId, post, {
-            parse: 'none',
-            mrkdwn: true
+        web.chat.postMessage(channelId, post.text, {
+            parse : 'none',
+            mrkdwn : true,
+            attachments : JSON.stringify(post.attachments)
         });
         lastAskedQuestionIndex = null;
         messageText = 'Awesome! Have a great day';
