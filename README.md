@@ -58,5 +58,25 @@ SCHEDULE_HOUR: standup time (hour 0-24)
 HOURS_GMT_OFFSET: indicates current timezone
 SKIP_WEEKEND: boolean value indicates if bot ask users on weekends
 ```
-### Restriction
+### Restrictions
 User can't be in two standup groups at one time.
+### Slack bot permissions
+####OTHER
+```code
+bot
+incoming-webhook
+```
+####CHANNELS
+```code
+channels:history
+channels:write
+```
+####CHAT
+```code
+chat:write:user
+```
+####IM
+```code
+im:history
+im:write
+```
