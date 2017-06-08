@@ -93,11 +93,11 @@ function initQuestionsTrigger() {
 }
 
 function onRtmClientStart(rtmStartData) {
-    web.channels.list(function(err, channelsInfo) {
+    web.groups.list(function(err, channelsInfo) {
         if (err) {
             console.log('Error:', err);
         } else {
-            let allChannels = channelsInfo.channels;
+            let allChannels = channelsInfo.groups;
 
             web.dm.list(function(err, imChannelsInfo) {
                 if (err) {
