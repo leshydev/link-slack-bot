@@ -89,7 +89,7 @@ function initQuestionsTrigger() {
                 }
             }
         }
-    }, 1000 * 6);
+    }, 1000 * 60);
 }
 
 function onRtmClientStart(rtmStartData) {
