@@ -165,8 +165,7 @@ function answerQuestion(user, message) {
 setInterval(() => {
     let userDate = getUserDate();
 
-    //if (userDate.getHours() >= CONFIG.SCHEDULE_HOUR) {
-    if (true) {
+    if (userDate.getHours() >= CONFIG.SCHEDULE_HOUR) {
         for (let user of users.values()) {
             let teamChannelQuestions = CONFIG.TEAM_CHANNELS.get(user.teamChannelId).questions,
                 currentUserDateStr = `${userDate.getFullYear()}.${userDate.getMonth()}.${userDate.getDate()}`,
@@ -179,16 +178,13 @@ setInterval(() => {
                 lastAnswerDateStr = `${lastAnswerDate.getFullYear()}.${lastAnswerDate.getMonth()}.${lastAnswerDate.getDate()}`;
             }
 
-            currentUserDateStr = 1;
-            lastAnswerDateStr = 0;
-
             if (user.lastAskedQuestionIndex === null && (lastAnswerDate === null || currentUserDateStr > lastAnswerDateStr)) {
                 rtm.sendMessage(`<@${user.id}> ${teamChannelQuestions[0]}`, user.imChannelId);
                 user.lastAskedQuestionIndex = 0;
             }
         }
     }
-}, 1000 * 10);
+}, 1000 * 60);
 
 rtm.on(RTM_EVENTS.MESSAGE, function handleRtmMessage(message) {
     let isImChannel = allImChannels.findIndex((botImChannel) => {
