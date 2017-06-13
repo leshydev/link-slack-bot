@@ -4,54 +4,73 @@ let RtmClient = require('./node_modules/slack-client').RtmClient,
     WebClient = require('./node_modules/slack-client').WebClient,
     CLIENT_EVENTS = require('./node_modules/slack-client').CLIENT_EVENTS,
     RTM_EVENTS = require('./node_modules/slack-client').RTM_EVENTS,
+    RTM_MESSAGE_SUBTYPES = require('./node_modules/slack-client').RTM_MESSAGE_SUBTYPES,
     argv = require('minimist')(process.argv.slice(2)),
     fs = require('fs');
 
-let CONFIG = JSON.parse(fs.readFileSync('config.json', 'utf8')),
-    bot_token = argv.SLACK_BOT_TOKEN || CONFIG.SLACK_BOT_TOKEN,
-    TEAM_CHANNELS = new Map((CONFIG.CHANNELS || []).map((channel) => [channel.id, channel])),
-    users = new Map(),
-    rtm = new RtmClient(bot_token),
-    web = new WebClient(bot_token);
+let CONFIG, rtm, web, allImChannels, allUsers,
+    CONFIG_FILE = 'config.json',
+    users = new Map();
 
-function fetchUserChannels(userId, teamChannelId, botImChannelId) {
-    let user = users.get(userId);
+updateConfiguration();
 
-    if (!user) {
-        user = {
-            id : userId,
-            imChannelId : botImChannelId,
-            lastAnswerDate : null,
-            answers : [],
-            channels : new Map()
-        };
+function updateConfiguration() {
+    let newBotToken, cachedBotToken = CONFIG && CONFIG.SLACK_BOT_TOKEN;
+
+    CONFIG = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
+
+    CONFIG.TEAM_CHANNELS = new Map((CONFIG.CHANNELS || []).map((channel) => [channel.id, channel]));
+    CONFIG.SLACK_BOT_TOKEN = newBotToken = argv.SLACK_BOT_TOKEN || CONFIG.SLACK_BOT_TOKEN;
+
+    if (cachedBotToken !== newBotToken) {
+        rtm = new RtmClient(newBotToken);
+        web = new WebClient(newBotToken);
     }
-
-    user.channels.set(teamChannelId, {
-        id : teamChannelId,
-        lastAskedQuestionIndex : null
-    });
-
-    users.set(userId, user);
 }
 
-function fetchChannels(allChannels, imChannels) {
-    TEAM_CHANNELS.forEach((teamChannel) => {
-        allChannels.forEach((channel) => {
-            let teamChannelId = teamChannel.id;
+function getUserImChannelId(allImChannels, userId) {
+    let botImChannel = allImChannels.find((botImChannel) => {
+        if (botImChannel.user === userId) {
+            return true;
+        }
+    });
 
-            if (channel.id === teamChannelId) {
-                imChannels.forEach((botImChannel) => {
-                    let subscribedUsers = channel.members,
-                        userId = botImChannel.user,
-                        botImChannelId = botImChannel.id;
+    return botImChannel.id;
+}
 
-                    if (subscribedUsers.indexOf(userId) !== -1) {
-                        fetchUserChannels(userId, teamChannelId, botImChannelId);
-                    }
-                });
-            }
+function getUsersByNames(allUsers, usersNames) {
+    let subscribedUsers = [];
+
+    allUsers.forEach((user) => {
+        if (usersNames.indexOf(user.name) != -1) {
+            subscribedUsers.push(user);
+        }
+    });
+
+    return subscribedUsers;
+}
+
+function fetchChannelsAndUsers(allImChannels, allUsers) {
+    CONFIG.TEAM_CHANNELS.forEach((teamChannel) => {
+        let teamChannelId = teamChannel.id,
+            subscribedUsers = getUsersByNames(allUsers, teamChannel.users || []);
+
+        subscribedUsers.forEach((user) => {
+            let userId = user.id,
+                userImChannelId = getUserImChannelId(allImChannels, userId);
+
+            users.set(userId, {
+                id : userId,
+                name : user.name,
+                realName : user.real_name,
+                imChannelId : userImChannelId,
+                lastAnswerDate : null,
+                answers : [],
+                teamChannelId : teamChannelId,
+                lastAskedQuestionIndex : null
+            });
         });
+
     });
 }
 
@@ -64,49 +83,19 @@ function getUserDate() {
     return userDate;
 }
 
-function initQuestionsTrigger() {
-    setInterval(() => {
-        let userDate = getUserDate();
-
-        if (userDate.getHours() >= CONFIG.SCHEDULE_HOUR) {
-            for (let user of users.values()) {
-                for (let [userTeamChannelId, userTeamChannel] of user.channels) {
-                    let teamChannelQuestions = TEAM_CHANNELS.get(userTeamChannelId).questions,
-                        currentUserDateStr = `${userDate.getFullYear()}.${userDate.getMonth()}.${userDate.getDate()}`,
-                        lastAnswerDate = user.lastAnswerDate,
-                        lastAnswerDateStr;
-
-                    if (CONFIG.SKIP_WEEKEND && userDate.getDay() > 5) return;
-
-                    if (lastAnswerDate) {
-                        lastAnswerDateStr = `${lastAnswerDate.getFullYear()}.${lastAnswerDate.getMonth()}.${lastAnswerDate.getDate()}`;
-                    }
-
-                    if (userTeamChannel.lastAskedQuestionIndex === null && (lastAnswerDate === null || currentUserDateStr > lastAnswerDateStr)) {
-                        rtm.sendMessage(`<@${user.id}> ${teamChannelQuestions[0]}`, user.imChannelId);
-                        userTeamChannel.lastAskedQuestionIndex = 0;
-                    }
-                }
-            }
-        }
-    }, 1000 * 60);
-}
-
 function onRtmClientStart(rtmStartData) {
-    web.groups.list(function(err, channelsInfo) {
+    web.dm.list(function(err, imChannelsInfo) {
         if (err) {
             console.log('Error:', err);
         } else {
-            let allChannels = channelsInfo.groups;
-
-            web.dm.list(function(err, imChannelsInfo) {
+            web.users.list(function(err, usersInfo) {
                 if (err) {
                     console.log('Error:', err);
                 } else {
-                    let imChannels = imChannelsInfo.ims;
+                    allImChannels = imChannelsInfo.ims;
+                    allUsers = usersInfo.members;
 
-                    fetchChannels(allChannels, imChannels);
-                    initQuestionsTrigger();
+                    fetchChannelsAndUsers(allImChannels, allUsers);
                 }
             });
         }
@@ -125,7 +114,7 @@ function buildPost(user, questions) {
             "Oct", "Nov", "Dec"
         ],
         userPost = {
-            text : `<@${user.id}> posted a status update for *${monthNames[monthIndex]} ${day}, ${year}*`,
+            text : `*${user.realName}* posted a status update for *${monthNames[monthIndex]} ${day}, ${year}*`,
             attachments : []
         };
 
@@ -143,21 +132,24 @@ function buildPost(user, questions) {
     return userPost;
 }
 
-function answerQuestion(user, channel, message) {
-    let channelId = channel.id,
-        teamChannelQuestions = TEAM_CHANNELS.get(channelId).questions,
-        lastAskedQuestionIndex = channel.lastAskedQuestionIndex,
+function answerQuestion(user, message) {
+    let channelId = user.teamChannelId,
+        teamChannelQuestions = CONFIG.TEAM_CHANNELS.get(channelId).questions,
+        lastAskedQuestionIndex = user.lastAskedQuestionIndex,
         messageText;
 
     user.answers.push(message.text);
 
     if (lastAskedQuestionIndex === teamChannelQuestions.length - 1) {
         let post = buildPost(user, teamChannelQuestions);
+
         web.chat.postMessage(channelId, post.text, {
             parse : 'none',
             mrkdwn : true,
             attachments : JSON.stringify(post.attachments)
         });
+
+        user.answers = [];
         lastAskedQuestionIndex = null;
         messageText = 'Awesome! Have a great day';
     } else {
@@ -166,17 +158,62 @@ function answerQuestion(user, channel, message) {
     }
 
     rtm.sendMessage(messageText, message.channel);
-    channel.lastAskedQuestionIndex = lastAskedQuestionIndex;
+    user.lastAskedQuestionIndex = lastAskedQuestionIndex;
     user.lastAnswerDate = getUserDate();
 }
 
-rtm.on(RTM_EVENTS.MESSAGE, function handleRtmMessage(message) {
-    let user = users.get(message.user);
-    if (!user || !user.channels) return;
+setInterval(() => {
+    let userDate = getUserDate();
 
-    for (let userTeamChannel of user.channels.values()) {
-        if (userTeamChannel.lastAskedQuestionIndex === null) return;
-        answerQuestion(user, userTeamChannel, message);
+    //if (userDate.getHours() >= CONFIG.SCHEDULE_HOUR) {
+    if (true) {
+        for (let user of users.values()) {
+            let teamChannelQuestions = CONFIG.TEAM_CHANNELS.get(user.teamChannelId).questions,
+                currentUserDateStr = `${userDate.getFullYear()}.${userDate.getMonth()}.${userDate.getDate()}`,
+                lastAnswerDate = user.lastAnswerDate,
+                lastAnswerDateStr;
+
+            if (CONFIG.SKIP_WEEKEND && userDate.getDay() > 5) return;
+
+            if (lastAnswerDate) {
+                lastAnswerDateStr = `${lastAnswerDate.getFullYear()}.${lastAnswerDate.getMonth()}.${lastAnswerDate.getDate()}`;
+            }
+
+            currentUserDateStr = 1;
+            lastAnswerDateStr = 0;
+
+            if (user.lastAskedQuestionIndex === null && (lastAnswerDate === null || currentUserDateStr > lastAnswerDateStr)) {
+                rtm.sendMessage(`<@${user.id}> ${teamChannelQuestions[0]}`, user.imChannelId);
+                user.lastAskedQuestionIndex = 0;
+            }
+        }
+    }
+}, 1000 * 10);
+
+rtm.on(RTM_EVENTS.MESSAGE, function handleRtmMessage(message) {
+    let isImChannel = allImChannels.findIndex((botImChannel) => {
+        if (botImChannel.id === message.channel) {
+            return true;
+        }
+    });
+
+    if (isImChannel === -1) return;
+
+    if (message.subtype === RTM_MESSAGE_SUBTYPES.MESSAGE_CHANGED) {
+        let previousMessage = message.previous_message.text,
+            user = users.get(message.previous_message.user),
+            answerIndex;
+
+        if (!user || !user.teamChannelId || user.lastAskedQuestionIndex === null) return;
+
+        answerIndex = user.answers.indexOf(previousMessage);
+        user.answers[answerIndex] = message.message.text;
+    } else {
+        let user = users.get(message.user);
+
+        if (!user || !user.teamChannelId || user.lastAskedQuestionIndex === null) return;
+
+        answerQuestion(user, message);
     }
 });
 

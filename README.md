@@ -35,6 +35,10 @@ Here is an example of config.json:
   "CHANNELS": [
     {
       "id": "XXXXXX",
+      "users": [
+          "username1",
+          "username2"
+        ],
       "questions": [
         "Получилось ли у Вас выполнить все запланированные на вчера задачи?",
         "Какие планы на сегодня?",
@@ -53,6 +57,7 @@ Here is an example of config.json:
 SLACK_BOT_TOKEN: bot's token created in Slack team *can be passed through command line as argument*
 CHANNELS: list of channels where bot publishes standup results
 CHANNELS.id: channel id
+CHANNELS.users: users' names to be subscribed
 CHANNELS.questions: list of questions bot asks each user in group
 SCHEDULE_HOUR: standup time (hour 0-24)
 HOURS_GMT_OFFSET: indicates current timezone
