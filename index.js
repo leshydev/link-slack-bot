@@ -28,16 +28,6 @@ function updateConfiguration() {
     }
 }
 
-function getUserImChannelId(allImChannels, userId) {
-    let botImChannel = allImChannels.find((botImChannel) => {
-        if (botImChannel.user === userId) {
-            return true;
-        }
-    });
-
-    return botImChannel.id;
-}
-
 function getUsersByNames(allUsers, usersNames) {
     let subscribedUsers = [];
 
@@ -50,24 +40,25 @@ function getUsersByNames(allUsers, usersNames) {
     return subscribedUsers;
 }
 
-function fetchChannelsAndUsers(allImChannels, allUsers) {
+function fetchChannelsAndUsers(allUsers) {
     CONFIG.TEAM_CHANNELS.forEach((teamChannel) => {
         let teamChannelId = teamChannel.id,
             subscribedUsers = getUsersByNames(allUsers, teamChannel.users || []);
 
         subscribedUsers.forEach((user) => {
-            let userId = user.id,
-                userImChannelId = getUserImChannelId(allImChannels, userId);
+            let userId = user.id;
 
-            users.set(userId, {
-                id : userId,
-                name : user.name,
-                realName : user.real_name,
-                imChannelId : userImChannelId,
-                lastAnswerDate : null,
-                answers : [],
-                teamChannelId : teamChannelId,
-                lastAskedQuestionIndex : null
+            web.dm.open(userId, (arg1, channelInfo) => {
+                users.set(userId, {
+                    id : userId,
+                    name : user.name,
+                    realName : user.real_name,
+                    imChannelId : channelInfo.channel.id,
+                    lastAnswerDate : null,
+                    answers : [],
+                    teamChannelId : teamChannelId,
+                    lastAskedQuestionIndex : null
+                });
             });
         });
 
@@ -88,14 +79,15 @@ function onRtmClientStart(rtmStartData) {
         if (err) {
             console.log('Error:', err);
         } else {
+            allImChannels = imChannelsInfo.ims;
+
             web.users.list(function(err, usersInfo) {
                 if (err) {
                     console.log('Error:', err);
                 } else {
-                    allImChannels = imChannelsInfo.ims;
                     allUsers = usersInfo.members;
 
-                    fetchChannelsAndUsers(allImChannels, allUsers);
+                    fetchChannelsAndUsers(allUsers);
                 }
             });
         }
