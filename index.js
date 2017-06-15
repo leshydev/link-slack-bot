@@ -53,6 +53,7 @@ function fetchChannelsAndUsers(allUsers) {
                     id : userId,
                     name : user.name,
                     realName : user.real_name,
+                    icon_url : user.profile.image_48,
                     imChannelId : channelInfo.channel.id,
                     lastAnswerDate : null,
                     answers : [],
@@ -138,6 +139,8 @@ function answerQuestion(user, message) {
         web.chat.postMessage(channelId, post.text, {
             parse : 'none',
             mrkdwn : true,
+            username : user.realName,
+            icon_url : user.icon_url,
             attachments : JSON.stringify(post.attachments)
         });
 
