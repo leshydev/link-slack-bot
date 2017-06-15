@@ -8,13 +8,10 @@ let RtmClient = require('./node_modules/slack-client').RtmClient,
     argv = require('minimist')(process.argv.slice(2)),
     fs = require('fs');
 
-let CONFIG, rtm, web, allImChannels, allUsers,
-    CONFIG_FILE = 'config.json',
-    users = new Map();
+let CONFIG, CONFIG_FILE = 'config.json',
+    rtm, web, allImChannels, allUsers, users = new Map();
 
-updateConfiguration();
-
-function updateConfiguration() {
+function initConfig() {
     let newBotToken, cachedBotToken = CONFIG && CONFIG.SLACK_BOT_TOKEN;
 
     CONFIG = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
@@ -157,31 +154,7 @@ function answerQuestion(user, message) {
     user.lastAnswerDate = getUserDate();
 }
 
-setInterval(() => {
-    let userDate = getUserDate();
-
-    if (userDate.getHours() >= CONFIG.SCHEDULE_HOUR) {
-        for (let user of users.values()) {
-            let teamChannelQuestions = CONFIG.TEAM_CHANNELS.get(user.teamChannelId).questions,
-                currentUserDateStr = `${userDate.getFullYear()}.${userDate.getMonth()}.${userDate.getDate()}`,
-                lastAnswerDate = user.lastAnswerDate,
-                lastAnswerDateStr;
-
-            if (CONFIG.SKIP_WEEKEND && userDate.getDay() > 5) return;
-
-            if (lastAnswerDate) {
-                lastAnswerDateStr = `${lastAnswerDate.getFullYear()}.${lastAnswerDate.getMonth()}.${lastAnswerDate.getDate()}`;
-            }
-
-            if (user.lastAskedQuestionIndex === null && (lastAnswerDate === null || currentUserDateStr > lastAnswerDateStr)) {
-                rtm.sendMessage(`<@${user.id}> ${teamChannelQuestions[0]}`, user.imChannelId);
-                user.lastAskedQuestionIndex = 0;
-            }
-        }
-    }
-}, 1000 * 60);
-
-rtm.on(RTM_EVENTS.MESSAGE, function handleRtmMessage(message) {
+function handleRtmMessage(message) {
     let isImChannel = allImChannels.findIndex((botImChannel) => {
         if (botImChannel.id === message.channel) {
             return true;
@@ -206,7 +179,36 @@ rtm.on(RTM_EVENTS.MESSAGE, function handleRtmMessage(message) {
 
         answerQuestion(user, message);
     }
-});
+}
 
+function startStandupTrigger() {
+    setInterval(() => {
+        let userDate = getUserDate();
+
+        if (userDate.getHours() >= CONFIG.SCHEDULE_HOUR) {
+            for (let user of users.values()) {
+                let teamChannelQuestions = CONFIG.TEAM_CHANNELS.get(user.teamChannelId).questions,
+                    currentUserDateStr = `${userDate.getFullYear()}.${userDate.getMonth()}.${userDate.getDate()}`,
+                    lastAnswerDate = user.lastAnswerDate,
+                    lastAnswerDateStr;
+
+                if (CONFIG.SKIP_WEEKEND && userDate.getDay() > 5) return;
+
+                if (lastAnswerDate) {
+                    lastAnswerDateStr = `${lastAnswerDate.getFullYear()}.${lastAnswerDate.getMonth()}.${lastAnswerDate.getDate()}`;
+                }
+
+                if (user.lastAskedQuestionIndex === null && (lastAnswerDate === null || currentUserDateStr > lastAnswerDateStr)) {
+                    rtm.sendMessage(`<@${user.id}> ${teamChannelQuestions[0]}`, user.imChannelId);
+                    user.lastAskedQuestionIndex = 0;
+                }
+            }
+        }
+    }, 1000 * 60);
+}
+
+initConfig();
+startStandupTrigger();
 rtm.start();
+rtm.on(RTM_EVENTS.MESSAGE, handleRtmMessage);
 rtm.on(CLIENT_EVENTS.RTM.AUTHENTICATED, onRtmClientStart);
