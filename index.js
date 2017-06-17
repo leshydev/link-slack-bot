@@ -192,7 +192,7 @@ function startStandupTrigger() {
                     lastAnswerDate = user.lastAnswerDate,
                     lastAnswerDateStr;
 
-                if (CONFIG.SKIP_WEEKEND && userDate.getDay() > 5) return;
+                if (CONFIG.SKIP_WEEKEND && (userDate.getDay() === 6 || userDate.getDay() === 0)) return;
 
                 if (lastAnswerDate) {
                     lastAnswerDateStr = `${lastAnswerDate.getFullYear()}.${lastAnswerDate.getMonth()}.${lastAnswerDate.getDate()}`;
