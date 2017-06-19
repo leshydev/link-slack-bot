@@ -136,7 +136,7 @@ function answerQuestion(user, message) {
         web.chat.postMessage(channelId, post.text, {
             parse : 'none',
             mrkdwn : true,
-            username : user.realName || user.name,
+            username : user.name,
             icon_url : user.icon_url,
             attachments : JSON.stringify(post.attachments)
         });
