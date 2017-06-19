@@ -66,21 +66,21 @@ SKIP_WEEKEND: boolean value indicates if bot ask users on weekends
 ### Restrictions
 User can't be in two standup groups at one time.
 ### Slack bot permissions
-####OTHER
+#### OTHER
 ```code
 bot
 incoming-webhook
 ```
-####CHANNELS
+#### CHANNELS
 ```code
 channels:history
 channels:write
 ```
-####CHAT
+#### CHAT
 ```code
 chat:write:user
 ```
-####IM
+#### IM
 ```code
 im:history
 im:write
