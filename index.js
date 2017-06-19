@@ -104,7 +104,7 @@ function buildPost(user, questions) {
             "Oct", "Nov", "Dec"
         ],
         userPost = {
-            text : `*${user.realName}* posted a status update for *${monthNames[monthIndex]} ${day}, ${year}*`,
+            text : `*${user.realName || user.name}* posted a status update for *${monthNames[monthIndex]} ${day}, ${year}*`,
             attachments : []
         };
 
@@ -132,7 +132,7 @@ function answerQuestion(user, message) {
 
     if (lastAskedQuestionIndex === teamChannelQuestions.length - 1) {
         let post = buildPost(user, teamChannelQuestions);
-
+        console.log(user.realName || user.name);
         web.chat.postMessage(channelId, post.text, {
             parse : 'none',
             mrkdwn : true,
@@ -204,7 +204,7 @@ function startStandupTrigger() {
                 }
             }
         }
-    }, 1000 * 60);
+    }, 1000 * 6);
 }
 
 initConfig();
