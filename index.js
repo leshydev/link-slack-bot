@@ -132,7 +132,7 @@ function answerQuestion(user, message) {
 
     if (lastAskedQuestionIndex === teamChannelQuestions.length - 1) {
         let post = buildPost(user, teamChannelQuestions);
-        console.log(user.realName || user.name);
+
         web.chat.postMessage(channelId, post.text, {
             parse : 'none',
             mrkdwn : true,
