@@ -181,30 +181,34 @@ function handleRtmMessage(message) {
     }
 }
 
-function startStandupTrigger() {
-    setInterval(() => {
-        let userDate = getUserDate();
+function askUsers() {
+    let userDate = getUserDate();
 
-        if (userDate.getHours() >= CONFIG.SCHEDULE_HOUR) {
-            for (let user of users.values()) {
-                let teamChannelQuestions = CONFIG.TEAM_CHANNELS.get(user.teamChannelId).questions,
-                    currentUserDateStr = `${userDate.getFullYear()}.${userDate.getMonth()}.${userDate.getDate()}`,
-                    lastAnswerDate = user.lastAnswerDate,
-                    lastAnswerDateStr;
+    for (let user of users.values()) {
+        let teamChannelQuestions = CONFIG.TEAM_CHANNELS.get(user.teamChannelId).questions,
+            currentUserDateStr = `${userDate.getFullYear()}.${userDate.getMonth()}.${userDate.getDate()}`,
+            lastAnswerDate = user.lastAnswerDate,
+            lastAnswerDateStr;
 
-                if (CONFIG.SKIP_WEEKEND && (userDate.getDay() === 6 || userDate.getDay() === 0)) return;
+        if (CONFIG.SKIP_WEEKEND && (userDate.getDay() === 6 || userDate.getDay() === 0)) return;
 
-                if (lastAnswerDate) {
-                    lastAnswerDateStr = `${lastAnswerDate.getFullYear()}.${lastAnswerDate.getMonth()}.${lastAnswerDate.getDate()}`;
-                }
-
-                if (user.lastAskedQuestionIndex === null && (lastAnswerDate === null || currentUserDateStr > lastAnswerDateStr)) {
-                    rtm.sendMessage(`<@${user.id}> ${teamChannelQuestions[0]}`, user.imChannelId);
-                    user.lastAskedQuestionIndex = 0;
-                }
-            }
+        if (lastAnswerDate) {
+            lastAnswerDateStr = `${lastAnswerDate.getFullYear()}.${lastAnswerDate.getMonth()}.${lastAnswerDate.getDate()}`;
         }
-    }, 1000 * 60);
+
+        if (user.lastAskedQuestionIndex === null && (lastAnswerDate === null || currentUserDateStr > lastAnswerDateStr)) {
+            rtm.sendMessage(`<@${user.id}> ${teamChannelQuestions[0]}`, user.imChannelId);
+            user.lastAskedQuestionIndex = 0;
+        }
+    }
+}
+
+function startStandupTrigger() {
+    askUsers();
+
+    setInterval(() => {
+        askUsers();
+    }, 1000 * 60 * 60 * 24);
 }
 
 initConfig();
