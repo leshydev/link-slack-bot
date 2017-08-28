@@ -181,46 +181,32 @@ function handleRtmMessage(message) {
     }
 }
 
-function askUsers() {
-    let userDate = getUserDate();
-
-    console.log(userDate);
-
-    console.log(users.values());
-
-    for (let user of users.values()) {
-        let teamChannelQuestions = CONFIG.TEAM_CHANNELS.get(user.teamChannelId).questions,
-            currentUserDateStr = `${userDate.getFullYear()}.${userDate.getMonth()}.${userDate.getDate()}`,
-            lastAnswerDate = user.lastAnswerDate,
-            lastAnswerDateStr;
-
-        if (CONFIG.SKIP_WEEKEND && (userDate.getDay() === 6 || userDate.getDay() === 0)) {
-            console.log('weekend slipped');
-            return;
-        }
-
-        if (lastAnswerDate) {
-            lastAnswerDateStr = `${lastAnswerDate.getFullYear()}.${lastAnswerDate.getMonth()}.${lastAnswerDate.getDate()}`;
-        }
-
-        console.log('checking answers');
-        if (user.lastAskedQuestionIndex === null && (lastAnswerDate === null || currentUserDateStr > lastAnswerDateStr)) {
-            console.log('sending question to ' + user.username);
-            rtm.sendMessage(`<@${user.id}> ${teamChannelQuestions[0]}`, user.imChannelId);
-            user.lastAskedQuestionIndex = 0;
-            console.log('asked');
-        }
-    }
-}
-
 function startStandupTrigger() {
-    setTimeout(function () {
-        askUsers();
-    }, 1000 * 60);
-
     setInterval(() => {
-        askUsers();
-    }, 1000 * 60 * 60 * 24);
+        let userDate = getUserDate();
+
+        console.log(userDate);
+
+        if (userDate.getHours() >= CONFIG.SCHEDULE_HOUR) {
+            for (let user of users.values()) {
+                let teamChannelQuestions = CONFIG.TEAM_CHANNELS.get(user.teamChannelId).questions,
+                    currentUserDateStr = `${userDate.getFullYear()}.${userDate.getMonth()}.${userDate.getDate()}`,
+                    lastAnswerDate = user.lastAnswerDate,
+                    lastAnswerDateStr;
+
+                if (CONFIG.SKIP_WEEKEND && (userDate.getDay() === 6 || userDate.getDay() === 0)) return;
+
+                if (lastAnswerDate) {
+                    lastAnswerDateStr = `${lastAnswerDate.getFullYear()}.${lastAnswerDate.getMonth()}.${lastAnswerDate.getDate()}`;
+                }
+
+                if (user.lastAskedQuestionIndex === null && (lastAnswerDate === null || currentUserDateStr > lastAnswerDateStr)) {
+                    rtm.sendMessage(`<@${user.id}> ${teamChannelQuestions[0]}`, user.imChannelId);
+                    user.lastAskedQuestionIndex = 0;
+                }
+            }
+        }
+    }, 1000 * 60 * 60);
 }
 
 initConfig();
