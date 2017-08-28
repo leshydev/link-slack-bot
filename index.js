@@ -186,6 +186,8 @@ function askUsers() {
 
     console.log(userDate);
 
+    console.log(users);
+
     for (let user of users.values()) {
         let teamChannelQuestions = CONFIG.TEAM_CHANNELS.get(user.teamChannelId).questions,
             currentUserDateStr = `${userDate.getFullYear()}.${userDate.getMonth()}.${userDate.getDate()}`,
