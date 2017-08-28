@@ -201,9 +201,12 @@ function askUsers() {
             lastAnswerDateStr = `${lastAnswerDate.getFullYear()}.${lastAnswerDate.getMonth()}.${lastAnswerDate.getDate()}`;
         }
 
+        console.log('checking answers');
         if (user.lastAskedQuestionIndex === null && (lastAnswerDate === null || currentUserDateStr > lastAnswerDateStr)) {
+            console.log('sending question to ' + user.username);
             rtm.sendMessage(`<@${user.id}> ${teamChannelQuestions[0]}`, user.imChannelId);
             user.lastAskedQuestionIndex = 0;
+            console.log('asked');
         }
     }
 }
