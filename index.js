@@ -214,7 +214,9 @@ function askUsers() {
 }
 
 function startStandupTrigger() {
-    askUsers();
+    setTimeout(function () {
+        askUsers();
+    }, 1000 * 60);
 
     setInterval(() => {
         askUsers();
