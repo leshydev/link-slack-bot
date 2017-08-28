@@ -184,13 +184,18 @@ function handleRtmMessage(message) {
 function askUsers() {
     let userDate = getUserDate();
 
+    console.log(userDate);
+
     for (let user of users.values()) {
         let teamChannelQuestions = CONFIG.TEAM_CHANNELS.get(user.teamChannelId).questions,
             currentUserDateStr = `${userDate.getFullYear()}.${userDate.getMonth()}.${userDate.getDate()}`,
             lastAnswerDate = user.lastAnswerDate,
             lastAnswerDateStr;
 
-        if (CONFIG.SKIP_WEEKEND && (userDate.getDay() === 6 || userDate.getDay() === 0)) return;
+        if (CONFIG.SKIP_WEEKEND && (userDate.getDay() === 6 || userDate.getDay() === 0)) {
+            console.log('weekend slipped');
+            return;
+        }
 
         if (lastAnswerDate) {
             lastAnswerDateStr = `${lastAnswerDate.getFullYear()}.${lastAnswerDate.getMonth()}.${lastAnswerDate.getDate()}`;
