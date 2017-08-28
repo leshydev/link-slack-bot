@@ -186,7 +186,7 @@ function askUsers() {
 
     console.log(userDate);
 
-    console.log(users);
+    console.log(users.values());
 
     for (let user of users.values()) {
         let teamChannelQuestions = CONFIG.TEAM_CHANNELS.get(user.teamChannelId).questions,
