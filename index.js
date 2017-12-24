@@ -1,6 +1,7 @@
 'use strict';
 
-let RtmClient = require('./node_modules/slack-client').RtmClient,
+let ntpClient = require('ntp-client'),
+    RtmClient = require('./node_modules/slack-client').RtmClient,
     WebClient = require('./node_modules/slack-client').WebClient,
     CLIENT_EVENTS = require('./node_modules/slack-client').CLIENT_EVENTS,
     RTM_EVENTS = require('./node_modules/slack-client').RTM_EVENTS,
@@ -9,7 +10,7 @@ let RtmClient = require('./node_modules/slack-client').RtmClient,
     fs = require('fs');
 
 let CONFIG, CONFIG_FILE = 'config.json',
-    rtm, web, allImChannels, allUsers, users = new Map();
+    rtm, web, allImChannels, allUsers, localDate, users = new Map();
 
 function initConfig() {
     let newBotToken, cachedBotToken = CONFIG && CONFIG.SLACK_BOT_TOKEN;
@@ -47,15 +48,15 @@ function fetchChannelsAndUsers(allUsers) {
 
             web.dm.open(userId, (arg1, channelInfo) => {
                 users.set(userId, {
-                    id : userId,
-                    name : user.name,
-                    realName : user.real_name,
-                    icon_url : user.profile.image_48,
-                    imChannelId : channelInfo.channel.id,
-                    lastAnswerDate : null,
-                    answers : [],
-                    teamChannelId : teamChannelId,
-                    lastAskedQuestionIndex : null
+                    id: userId,
+                    name: user.name,
+                    realName: user.real_name,
+                    icon_url: user.profile.image_48,
+                    imChannelId: channelInfo.channel.id,
+                    lastAnswerDate: null,
+                    answers: [],
+                    teamChannelId: teamChannelId,
+                    lastAskedQuestionIndex: null
                 });
             });
         });
@@ -63,23 +64,28 @@ function fetchChannelsAndUsers(allUsers) {
     });
 }
 
-function getUserDate() {
-    let currentDate = new Date(),
-        userOffset = CONFIG.HOURS_GMT_OFFSET * 60 * 60000,
-        timeOffset = currentDate.getTimezoneOffset() * 60000,
-        userDate = new Date(currentDate.getTime() + timeOffset + userOffset);
+function updateLocalDate() {
+    ntpClient.getNetworkTime("pool.ntp.org", 123, function (err, date) {
+        if (err) {
+            console.error(err);
+            return;
+        }
 
-    return userDate;
+        let userOffset = CONFIG.HOURS_GMT_OFFSET * 60 * 60000,
+            timeOffset = date.getTimezoneOffset() * 60000;
+
+        localDate = new Date(date.getTime() + timeOffset + userOffset);
+    });
 }
 
 function onRtmClientStart(rtmStartData) {
-    web.dm.list(function(err, imChannelsInfo) {
+    web.dm.list(function (err, imChannelsInfo) {
         if (err) {
             console.log('Error:', err);
         } else {
             allImChannels = imChannelsInfo.ims;
 
-            web.users.list(function(err, usersInfo) {
+            web.users.list(function (err, usersInfo) {
                 if (err) {
                     console.log('Error:', err);
                 } else {
@@ -93,10 +99,9 @@ function onRtmClientStart(rtmStartData) {
 }
 
 function buildPost(user, questions) {
-    let date = getUserDate(),
-        day = date.getDate(),
-        monthIndex = date.getMonth(),
-        year = date.getFullYear(),
+    let day = localDate.getDate(),
+        monthIndex = localDate.getMonth(),
+        year = localDate.getFullYear(),
         monthNames = [
             "Jan", "Feb", "Mar",
             "Apr", "May", "Jun",
@@ -104,8 +109,8 @@ function buildPost(user, questions) {
             "Oct", "Nov", "Dec"
         ],
         userPost = {
-            text : `*${user.realName || user.name}* posted a status update for *${monthNames[monthIndex]} ${day}, ${year}*`,
-            attachments : []
+            text: `*${user.realName || user.name}* posted a status update for *${monthNames[monthIndex]} ${day}, ${year}*`,
+            attachments: []
         };
 
     questions.forEach((question, index) => {
@@ -113,9 +118,9 @@ function buildPost(user, questions) {
 
         if (answer === '' || answer === '-') return;
         userPost.attachments.push({
-            title : question,
-            color : "#839bbd",
-            text : user.answers[index]
+            title: question,
+            color: "#839bbd",
+            text: user.answers[index]
         });
     });
 
@@ -134,11 +139,11 @@ function answerQuestion(user, message) {
         let post = buildPost(user, teamChannelQuestions);
 
         web.chat.postMessage(channelId, post.text, {
-            parse : 'none',
-            mrkdwn : true,
-            username : user.name,
-            icon_url : user.icon_url,
-            attachments : JSON.stringify(post.attachments)
+            parse: 'none',
+            mrkdwn: true,
+            username: user.name,
+            icon_url: user.icon_url,
+            attachments: JSON.stringify(post.attachments)
         });
 
         user.answers = [];
@@ -151,7 +156,7 @@ function answerQuestion(user, message) {
 
     rtm.sendMessage(messageText, message.channel);
     user.lastAskedQuestionIndex = lastAskedQuestionIndex;
-    user.lastAnswerDate = getUserDate();
+    user.lastAnswerDate = localDate;
 }
 
 function handleRtmMessage(message) {
@@ -183,24 +188,24 @@ function handleRtmMessage(message) {
 
 function startStandupTrigger() {
     setInterval(() => {
-        let userDate = getUserDate();
+        if (!localDate) {
+            return;
+        }
 
-        console.log(userDate);
-
-        if (userDate.getHours() >= CONFIG.SCHEDULE_HOUR) {
+        if (localDate.getHours() >= CONFIG.SCHEDULE_HOUR) {
             for (let user of users.values()) {
                 let teamChannelQuestions = CONFIG.TEAM_CHANNELS.get(user.teamChannelId).questions,
-                    currentUserDateStr = `${userDate.getFullYear()}.${userDate.getMonth()}.${userDate.getDate()}`,
+                    currentLocalDateStr = `${localDate.getFullYear()}.${localDate.getMonth()}.${localDate.getDate()}}`,
                     lastAnswerDate = user.lastAnswerDate,
                     lastAnswerDateStr;
 
-                if (CONFIG.SKIP_WEEKEND && (userDate.getDay() === 6 || userDate.getDay() === 0)) return;
+                if (CONFIG.SKIP_WEEKEND && (localDate.getDay() === 6 || localDate.getDay() === 0)) return;
 
                 if (lastAnswerDate) {
-                    lastAnswerDateStr = `${lastAnswerDate.getFullYear()}.${lastAnswerDate.getMonth()}.${lastAnswerDate.getDate()}`;
+                    lastAnswerDateStr = `${lastAnswerDate.getFullYear()}.${lastAnswerDate.getMonth()}.${lastAnswerDate.getDate()}}`;
                 }
 
-                if (user.lastAskedQuestionIndex === null && (lastAnswerDate === null || currentUserDateStr > lastAnswerDateStr)) {
+                if (user.lastAskedQuestionIndex === null && (lastAnswerDate === null || currentLocalDateStr > lastAnswerDateStr)) {
                     rtm.sendMessage(`<@${user.id}> ${teamChannelQuestions[0]}`, user.imChannelId);
                     user.lastAskedQuestionIndex = 0;
                 }
@@ -208,6 +213,8 @@ function startStandupTrigger() {
         }
     }, 1000 * 60 * 60);
 }
+
+setInterval(() => updateLocalDate(), 1000 * 60);
 
 initConfig();
 startStandupTrigger();
