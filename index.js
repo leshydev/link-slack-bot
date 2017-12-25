@@ -10,10 +10,12 @@ let ntpClient = require('ntp-client'),
     fs = require('fs');
 
 let CONFIG, CONFIG_FILE = 'config.json',
-    rtm, web, allImChannels, allUsers, localDate, users = new Map();
+    rtm, web, botStarted, allImChannels, allUsers, localDate, users = new Map();
 
 function initConfig() {
     let newBotToken, cachedBotToken = CONFIG && CONFIG.SLACK_BOT_TOKEN;
+
+    console.log('Initializing configuration...');
 
     CONFIG = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
 
@@ -21,6 +23,8 @@ function initConfig() {
     CONFIG.SLACK_BOT_TOKEN = newBotToken = argv.SLACK_BOT_TOKEN || CONFIG.SLACK_BOT_TOKEN;
 
     if (cachedBotToken !== newBotToken) {
+        console.log('Starting bot...');
+
         rtm = new RtmClient(newBotToken);
         web = new WebClient(newBotToken);
     }
@@ -39,6 +43,8 @@ function getUsersByNames(allUsers, usersNames) {
 }
 
 function fetchChannelsAndUsers(allUsers) {
+    console.log('Fetching users...');
+
     CONFIG.TEAM_CHANNELS.forEach((teamChannel) => {
         let teamChannelId = teamChannel.id,
             subscribedUsers = getUsersByNames(allUsers, teamChannel.users || []);
@@ -79,6 +85,9 @@ function updateLocalDate() {
 }
 
 function onRtmClientStart(rtmStartData) {
+    if (botStarted) return;
+    botStarted = true;
+
     web.dm.list(function (err, imChannelsInfo) {
         if (err) {
             console.log('Error:', err);
@@ -92,6 +101,8 @@ function onRtmClientStart(rtmStartData) {
                     allUsers = usersInfo.members;
 
                     fetchChannelsAndUsers(allUsers);
+
+                    console.log('Bot started');
                 }
             });
         }
@@ -156,7 +167,7 @@ function answerQuestion(user, message) {
 
     rtm.sendMessage(messageText, message.channel);
     user.lastAskedQuestionIndex = lastAskedQuestionIndex;
-    user.lastAnswerDate = localDate;
+    user.lastAnswerDate = new Date(localDate.getTime());
 }
 
 function handleRtmMessage(message) {
@@ -180,7 +191,10 @@ function handleRtmMessage(message) {
     } else {
         let user = users.get(message.user);
 
-        if (!user || !user.teamChannelId || user.lastAskedQuestionIndex === null) return;
+        if (!user || !user.teamChannelId || user.lastAskedQuestionIndex === null) {
+            rtm.sendMessage('See you later...', message.channel);
+            return;
+        }
 
         answerQuestion(user, message);
     }
@@ -194,14 +208,14 @@ function sendNotifications() {
     if (localDate.getHours() >= CONFIG.SCHEDULE_HOUR) {
         for (let user of users.values()) {
             let teamChannelQuestions = CONFIG.TEAM_CHANNELS.get(user.teamChannelId).questions,
-                currentLocalDateStr = `${localDate.getFullYear()}.${localDate.getMonth()}.${localDate.getDate()}}`,
+                currentLocalDateStr = `${localDate.getFullYear()}.${localDate.getMonth()}.${localDate.getDate()}`,
                 lastAnswerDate = user.lastAnswerDate,
                 lastAnswerDateStr;
 
             if (CONFIG.SKIP_WEEKEND && (localDate.getDay() === 6 || localDate.getDay() === 0)) return;
 
             if (lastAnswerDate) {
-                lastAnswerDateStr = `${lastAnswerDate.getFullYear()}.${lastAnswerDate.getMonth()}.${lastAnswerDate.getDate()}}`;
+                lastAnswerDateStr = `${lastAnswerDate.getFullYear()}.${lastAnswerDate.getMonth()}.${lastAnswerDate.getDate()}`;
             }
 
             if (user.lastAskedQuestionIndex === null && (lastAnswerDate === null || currentLocalDateStr > lastAnswerDateStr)) {
@@ -212,10 +226,9 @@ function sendNotifications() {
     }
 }
 
-setInterval(() => updateLocalDate(), 1000 * 60);
-
 initConfig();
-setInterval(() => sendNotifications(), 1000 * 60 * 60);
+setInterval(() => updateLocalDate(), 1000 * 30);
+setInterval(() => sendNotifications(), 1000 * 60);
 rtm.start();
 rtm.on(RTM_EVENTS.MESSAGE, handleRtmMessage);
 rtm.on(CLIENT_EVENTS.RTM.AUTHENTICATED, onRtmClientStart);
