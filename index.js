@@ -42,7 +42,7 @@ function getUsersByNames(allUsers, usersNames) {
     return subscribedUsers;
 }
 
-function fetchChannelsAndUsers(allUsers) {
+function fetchChannelsAndUsers(allUsers, date) {
     console.log('Fetching users...');
 
     CONFIG.TEAM_CHANNELS.forEach((teamChannel) => {
@@ -53,13 +53,14 @@ function fetchChannelsAndUsers(allUsers) {
             let userId = user.id;
 
             web.dm.open(userId, (arg1, channelInfo) => {
+                console.log(`Fetched ${userId}:${user.name} `);
                 users.set(userId, {
                     id: userId,
                     name: user.name,
                     realName: user.real_name,
                     icon_url: user.profile.image_48,
                     imChannelId: channelInfo.channel.id,
-                    lastAnswerDate: null,
+                    lastAnswerDate: date || new Date(),
                     answers: [],
                     teamChannelId: teamChannelId,
                     lastAskedQuestionIndex: null
@@ -70,7 +71,7 @@ function fetchChannelsAndUsers(allUsers) {
     });
 }
 
-function updateLocalDate() {
+function updateLocalDate(callback) {
     ntpClient.getNetworkTime(CONFIG.NTP_SERVER.HOST, CONFIG.NTP_SERVER.PORT, function (err, date) {
         if (err) {
             console.error(err);
@@ -81,12 +82,17 @@ function updateLocalDate() {
             timeOffset = date.getTimezoneOffset() * 60000;
 
         localDate = new Date(date.getTime() + timeOffset + userOffset);
+
+        if (callback) {
+            callback(localDate);
+        }
     });
 }
 
 function onRtmClientStart(rtmStartData) {
     if (botStarted) return;
     botStarted = true;
+    console.log('Bot started');
 
     web.dm.list(function (err, imChannelsInfo) {
         if (err) {
@@ -100,9 +106,7 @@ function onRtmClientStart(rtmStartData) {
                 } else {
                     allUsers = usersInfo.members;
 
-                    fetchChannelsAndUsers(allUsers);
-
-                    console.log('Bot started');
+                    updateLocalDate(date => fetchChannelsAndUsers(allUsers, date));
                 }
             });
         }
