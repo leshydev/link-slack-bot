@@ -49,7 +49,11 @@ Here is an example of config.json:
   ],
   "SCHEDULE_HOUR": 10,
   "HOURS_GMT_OFFSET": 3,
-  "SKIP_WEEKEND": true
+  "SKIP_WEEKEND": true,
+  "NTP_SERVER": {
+      "HOST": "pool.ntp.org",
+      "PORT": 123
+    }
 }
 ```
 
@@ -62,6 +66,7 @@ CHANNELS.questions: list of questions bot asks each user in group
 SCHEDULE_HOUR: standup time (hour 0-24)
 HOURS_GMT_OFFSET: indicates current timezone
 SKIP_WEEKEND: boolean value indicates if bot ask users on weekends
+NTP_SERVER: ntp server settings for remote time synchronization
 ```
 ### Restrictions
 User can't be in two standup groups at one time.
