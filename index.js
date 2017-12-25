@@ -65,7 +65,7 @@ function fetchChannelsAndUsers(allUsers) {
 }
 
 function updateLocalDate() {
-    ntpClient.getNetworkTime("pool.ntp.org", 123, function (err, date) {
+    ntpClient.getNetworkTime(CONFIG.NTP_SERVER.HOST, CONFIG.NTP_SERVER.PORT, function (err, date) {
         if (err) {
             console.error(err);
             return;
@@ -186,38 +186,36 @@ function handleRtmMessage(message) {
     }
 }
 
-function startStandupTrigger() {
-    setInterval(() => {
-        if (!localDate) {
-            return;
-        }
+function sendNotifications() {
+    if (!localDate) {
+        return;
+    }
 
-        if (localDate.getHours() >= CONFIG.SCHEDULE_HOUR) {
-            for (let user of users.values()) {
-                let teamChannelQuestions = CONFIG.TEAM_CHANNELS.get(user.teamChannelId).questions,
-                    currentLocalDateStr = `${localDate.getFullYear()}.${localDate.getMonth()}.${localDate.getDate()}}`,
-                    lastAnswerDate = user.lastAnswerDate,
-                    lastAnswerDateStr;
+    if (localDate.getHours() >= CONFIG.SCHEDULE_HOUR) {
+        for (let user of users.values()) {
+            let teamChannelQuestions = CONFIG.TEAM_CHANNELS.get(user.teamChannelId).questions,
+                currentLocalDateStr = `${localDate.getFullYear()}.${localDate.getMonth()}.${localDate.getDate()}}`,
+                lastAnswerDate = user.lastAnswerDate,
+                lastAnswerDateStr;
 
-                if (CONFIG.SKIP_WEEKEND && (localDate.getDay() === 6 || localDate.getDay() === 0)) return;
+            if (CONFIG.SKIP_WEEKEND && (localDate.getDay() === 6 || localDate.getDay() === 0)) return;
 
-                if (lastAnswerDate) {
-                    lastAnswerDateStr = `${lastAnswerDate.getFullYear()}.${lastAnswerDate.getMonth()}.${lastAnswerDate.getDate()}}`;
-                }
+            if (lastAnswerDate) {
+                lastAnswerDateStr = `${lastAnswerDate.getFullYear()}.${lastAnswerDate.getMonth()}.${lastAnswerDate.getDate()}}`;
+            }
 
-                if (user.lastAskedQuestionIndex === null && (lastAnswerDate === null || currentLocalDateStr > lastAnswerDateStr)) {
-                    rtm.sendMessage(`<@${user.id}> ${teamChannelQuestions[0]}`, user.imChannelId);
-                    user.lastAskedQuestionIndex = 0;
-                }
+            if (user.lastAskedQuestionIndex === null && (lastAnswerDate === null || currentLocalDateStr > lastAnswerDateStr)) {
+                rtm.sendMessage(`<@${user.id}> ${teamChannelQuestions[0]}`, user.imChannelId);
+                user.lastAskedQuestionIndex = 0;
             }
         }
-    }, 1000 * 60 * 60);
+    }
 }
 
 setInterval(() => updateLocalDate(), 1000 * 60);
 
 initConfig();
-startStandupTrigger();
+setInterval(() => sendNotifications(), 1000 * 60 * 60);
 rtm.start();
 rtm.on(RTM_EVENTS.MESSAGE, handleRtmMessage);
 rtm.on(CLIENT_EVENTS.RTM.AUTHENTICATED, onRtmClientStart);

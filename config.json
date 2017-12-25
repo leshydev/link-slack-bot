@@ -17,5 +17,9 @@
   ],
   "SCHEDULE_HOUR": 10,
   "HOURS_GMT_OFFSET": 3,
-  "SKIP_WEEKEND": true
+  "SKIP_WEEKEND": true,
+  "NTP_SERVER": {
+    "HOST": "pool.ntp.org",
+    "PORT": 123
+  }
 }
