@@ -25,7 +25,7 @@ or
 ```code
 nohup npm run start -- --SLACK_BOT_TOKEN=XXXXXXXXX &
 ```
-The second way starts bot in background with predefined argument (you can see it in package.json) link-slack-bot, witch will help you to identify the process.
+Last one starts bot in background with predefined argument (you can see it in package.json) link-slack-bot, which will help you to identify the process if you want to stop (kill) it.
 
 ### Configuration
 Here is an example of config.json:
