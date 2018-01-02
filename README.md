@@ -12,7 +12,7 @@ git clone https://github.com/leshydev/link-slack-bot
 cd link-slack-bot
 ```
 
-Edit config.json file placed in root folder. Look example below.
+Edit config.json file placed in root folder. See example below.
 
 ```code
 npm install
