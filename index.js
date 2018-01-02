@@ -15,7 +15,7 @@ let CONFIG, CONFIG_FILE = 'config.json',
 function initConfig() {
     let newBotToken, cachedBotToken = CONFIG && CONFIG.SLACK_BOT_TOKEN;
 
-    console.log('Initializing configuration...');
+    console.log('Reading configuration file...');
 
     CONFIG = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
 
@@ -45,6 +45,8 @@ function getUsersByNames(allUsers, usersNames) {
 function fetchChannelsAndUsers(allUsers, date) {
     console.log('Fetching users...');
 
+    if (users.size) return;
+
     CONFIG.TEAM_CHANNELS.forEach((teamChannel) => {
         let teamChannelId = teamChannel.id,
             subscribedUsers = getUsersByNames(allUsers, teamChannel.users || []);
@@ -60,7 +62,7 @@ function fetchChannelsAndUsers(allUsers, date) {
                     realName: user.real_name,
                     icon_url: user.profile.image_48,
                     imChannelId: channelInfo.channel.id,
-                    lastAnswerDate: date || new Date(),
+                    lastAnswerDate: null,
                     answers: [],
                     teamChannelId: teamChannelId,
                     lastAskedQuestionIndex: null
@@ -71,22 +73,38 @@ function fetchChannelsAndUsers(allUsers, date) {
     });
 }
 
-function updateLocalDate(callback) {
-    ntpClient.getNetworkTime(CONFIG.NTP_SERVER.HOST, CONFIG.NTP_SERVER.PORT, function (err, date) {
-        if (err) {
-            console.error(err);
-            return;
-        }
+function synchronizeLocalDate(callback) {
+    try {
+        ntpClient.getNetworkTime(CONFIG.NTP_SERVER.HOST, CONFIG.NTP_SERVER.PORT, function (err, date) {
+            if (err) {
+                setTimeout(synchronizeLocalDate(callback), 1000 * 60);
+                console.error(err);
+                return;
+            }
 
-        let userOffset = CONFIG.HOURS_GMT_OFFSET * 60 * 60000,
-            timeOffset = date.getTimezoneOffset() * 60000;
+            let userOffset = CONFIG.HOURS_GMT_OFFSET * 60 * 60000,
+                timeOffset = date.getTimezoneOffset() * 60000;
 
-        localDate = new Date(date.getTime() + timeOffset + userOffset);
+            localDate = new Date(date.getTime() + timeOffset + userOffset);
 
-        if (callback) {
-            callback(localDate);
-        }
-    });
+            console.log(`Synchronized time: ${localDate}`);
+
+            if (callback) {
+                callback(localDate);
+            }
+        });
+    } catch (e) {
+        setTimeout(synchronizeLocalDate(callback), 1000 * 60);
+        console.error(e);
+    }
+}
+
+function updateLocalDate(time) {
+    if (!localDate) {
+        return;
+    }
+
+    localDate.setTime(localDate.getTime() + time);
 }
 
 function onRtmClientStart(rtmStartData) {
@@ -106,7 +124,7 @@ function onRtmClientStart(rtmStartData) {
                 } else {
                     allUsers = usersInfo.members;
 
-                    updateLocalDate(date => fetchChannelsAndUsers(allUsers, date));
+                    synchronizeLocalDate(date => fetchChannelsAndUsers(allUsers, date));
                 }
             });
         }
@@ -195,7 +213,11 @@ function handleRtmMessage(message) {
     } else {
         let user = users.get(message.user);
 
-        if (!user || !user.teamChannelId || user.lastAskedQuestionIndex === null) {
+        if (!user) {
+            return;
+        }
+
+        if (!user.teamChannelId || user.lastAskedQuestionIndex === null) {
             rtm.sendMessage('See you later...', message.channel);
             return;
         }
@@ -231,7 +253,8 @@ function sendNotifications() {
 }
 
 initConfig();
-setInterval(() => updateLocalDate(), 1000 * 30);
+setInterval(() => synchronizeLocalDate(), 1000 * 60 * 60 * 24); // synchronize time with remote server every day
+setInterval(() => updateLocalDate(1000 * 60), 1000 * 60); // update time locally
 setInterval(() => sendNotifications(), 1000 * 60);
 rtm.start();
 rtm.on(RTM_EVENTS.MESSAGE, handleRtmMessage);
